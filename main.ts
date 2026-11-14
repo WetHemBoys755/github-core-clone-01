@@ -87,6 +87,19 @@ async function main(): Promise<void> {
   if (address === null || typeof address === 'string') throw new Error('the server did not bind an ephemeral TCP port');
   process.stdout.write(`[entry] listening on port ${address.port}\n`);
 
+  // A signal ends the process cleanly instead of leaving the port bound:
+  // close the server, then exit 0 (the harness stops the env after done
+  // either way; this only covers a direct SIGTERM/SIGINT).
+  let shuttingDown = false;
+  const shutdown = (): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5_000).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
   await register(address.port);
   process.stdout.write('[entry] registered; waiting for the env to say done\n');
 
